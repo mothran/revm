@@ -129,7 +129,7 @@ pub fn extcodecopy_cost<SPEC: Spec>(len: U256, is_cold: bool) -> Option<u64> {
         } else {
             STORAGE_READ_WARM
         }
-    } else if SPEC::enabled(ISTANBUL) {
+    } else if SPEC::enabled(TANGERINE) {
         700
     } else {
         20
@@ -155,7 +155,7 @@ pub fn account_access_gas<SPEC: Spec>(is_cold: bool) -> u64 {
         } else {
             STORAGE_READ_WARM
         }
-    } else if SPEC::enabled(ISTANBUL) {
+    } else if SPEC::enabled(TANGERINE) {
         700
     } else {
         20
