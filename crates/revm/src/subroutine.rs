@@ -505,7 +505,7 @@ impl SubRoutine {
     pub fn load_account_exist<DB: Database>(&mut self, address: H160, db: &mut DB) -> (bool, bool) {
         let (acc, is_cold) = self.load_code(address, db);
         let info = acc.info.clone();
-        let is_empty = info.is_empty();
+        let is_empty = info.is_empty() && !acc.filth.is_precompile();
         (is_cold, !is_empty)
     }
 
