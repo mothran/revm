@@ -18,7 +18,7 @@ pub type InMemoryDB = CacheDB<EmptyDB>;
 
 impl InMemoryDB {
     pub fn default() -> Self {
-        CacheDB::new(EmptyDB {})
+        CacheDB::new(EmptyDB {}, false)
     }
 }
 
@@ -32,6 +32,7 @@ pub struct CacheDB<ExtDB: DatabaseRef> {
     pub logs: Vec<Log>,
     pub block_hashes: Map<U256, H256>,
     pub db: ExtDB,
+    pub prehomestead: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -55,7 +56,7 @@ pub enum AccountState {
 }
 
 impl<ExtDB: DatabaseRef> CacheDB<ExtDB> {
-    pub fn new(db: ExtDB) -> Self {
+    pub fn new(db: ExtDB, prehomestead: bool) -> Self {
         let mut contracts = Map::new();
         contracts.insert(KECCAK_EMPTY, Bytes::new());
         contracts.insert(H256::zero(), Bytes::new());
@@ -65,6 +66,7 @@ impl<ExtDB: DatabaseRef> CacheDB<ExtDB> {
             logs: Vec::default(),
             block_hashes: Map::new(),
             db,
+            prehomestead,
         }
     }
 
@@ -102,6 +104,13 @@ impl<ExtDB: DatabaseRef> DatabaseCommit for CacheDB<ExtDB> {
     fn commit(&mut self, changes: Map<H160, Account>) {
         for (add, acc) in changes {
             if acc.is_empty() || matches!(acc.filth, Filth::Destroyed) {
+                // pre EIP-2
+                if acc.info.code.is_some()
+                    && acc.info.code_hash == KECCAK_EMPTY
+                    && self.prehomestead
+                {
+                    continue;
+                }
                 // clear account data, and increate its incarnation.
                 let acc = self.accounts.entry(add).or_default();
                 acc.account_state = AccountState::EVMStorageCleared;

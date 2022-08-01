@@ -415,8 +415,22 @@ impl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> EVMImpl<'a, GSPEC, DB, 
                     let gas_for_code = code.len() as u64 * crate::gas::CODEDEPOSIT;
                     // record code deposit gas cost and check if we are out of gas.
                     if !interp.gas.record_cost(gas_for_code) {
-                        self.data.subroutine.checkpoint_revert(checkpoint);
-                        return (Return::OutOfGas, ret, interp.gas, b);
+                        // EIP-2
+                        if SPEC::enabled(HOMESTEAD) {
+                            self.data.subroutine.checkpoint_revert(checkpoint);
+                            return (Return::OutOfGas, ret, interp.gas, b);
+                        } else {
+                            self.data.subroutine.checkpoint_commit();
+                            let empty_contract = Bytes::new();
+                            let code_hash =
+                                H256::from_slice(Keccak256::digest(&empty_contract).as_slice());
+                            self.data.subroutine.set_code(
+                                created_address,
+                                empty_contract,
+                                code_hash,
+                            );
+                            return (Return::Continue, ret, interp.gas, b);
+                        }
                     }
                 }
                 // if we have enought gas
