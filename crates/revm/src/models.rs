@@ -10,6 +10,15 @@ pub const KECCAK_EMPTY: H256 = H256([
     0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b, 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70,
 ]);
 
+/// State of a precompile
+#[derive(Clone, Eq, PartialEq, Debug)]
+#[cfg_attr(feature = "with-serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum PrecompState {
+    None,
+    Pending,
+    Called,
+}
+
 /// AccountInfo account information.
 #[derive(Clone, Eq, PartialEq, Debug)]
 #[cfg_attr(feature = "with-serde", derive(serde::Serialize, serde::Deserialize))]
@@ -24,6 +33,8 @@ pub struct AccountInfo {
     /// inside of revm.
     #[cfg_attr(feature = "with-serde", serde(with = "serde_hex_bytes_opt"))]
     pub code: Option<Bytes>,
+
+    pub precomp_state: PrecompState,
 }
 
 impl Default for AccountInfo {
@@ -33,6 +44,7 @@ impl Default for AccountInfo {
             code_hash: KECCAK_EMPTY,
             code: Some(Bytes::new()),
             nonce: 0,
+            precomp_state: PrecompState::None,
         }
     }
 }
@@ -49,6 +61,7 @@ impl AccountInfo {
             nonce,
             code: Some(code),
             code_hash,
+            precomp_state: PrecompState::None,
         }
     }
 
@@ -219,6 +232,8 @@ pub struct TxEnv {
 pub struct CfgEnv {
     pub chain_id: U256,
     pub spec_id: SpecId,
+    /// should precompiles be marked as "called" or not, for gas calculation.
+    pub precompiles_called: bool,
     /// If all precompiles have some balance we can skip initially fetching them from the database.
     /// This is is not really needed on mainnet, and defaults to false, but in most cases it is
     /// safe to be set to `true`, depending on the chain.
@@ -237,6 +252,7 @@ impl Default for CfgEnv {
         CfgEnv {
             chain_id: 1.into(),
             spec_id: SpecId::LATEST,
+            precompiles_called: true,
             perf_all_precompiles_have_balance: false,
             #[cfg(feature = "memory_limit")]
             memory_limit: 2u64.pow(32) - 1,

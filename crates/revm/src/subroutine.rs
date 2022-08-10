@@ -1,4 +1,4 @@
-use crate::{models::SelfDestructResult, Return, KECCAK_EMPTY};
+use crate::{models::SelfDestructResult, PrecompState, Return, KECCAK_EMPTY};
 use alloc::{vec, vec::Vec};
 use core::mem::{self};
 use hashbrown::{hash_map::Entry, HashMap as Map};
@@ -90,24 +90,30 @@ impl SubRoutine {
         &mut self.state
     }
 
-    pub fn load_precompiles(&mut self, precompiles: Map<H160, AccountInfo>) {
+    pub fn load_precompiles(&mut self, precompiles: Map<H160, AccountInfo>, called: bool) {
         let state: Map<H160, Account> = precompiles
             .into_iter()
             .map(|(k, value)| {
                 let mut acc = Account::from(value);
                 acc.filth = Filth::Precompile(false);
+                if called {
+                    acc.info.precomp_state = PrecompState::Called;
+                }
                 (k, acc)
             })
             .collect();
         self.state.extend(state);
     }
 
-    pub fn load_precompiles_default(&mut self, precompiles: &[H160]) {
+    pub fn load_precompiles_default(&mut self, precompiles: &[H160], called: bool) {
         let state: State = precompiles
             .iter()
             .map(|&k| {
                 let mut acc = Account::from(AccountInfo::default());
                 acc.filth = Filth::Precompile(false);
+                if called {
+                    acc.info.precomp_state = PrecompState::Called;
+                }
                 (k, acc)
             })
             .collect();
@@ -127,6 +133,13 @@ impl SubRoutine {
             match acc.filth {
                 // acc was destroyed or if it is changed precompile, just add it to output.
                 Filth::Destroyed | Filth::Precompile(true) => {
+                    if acc.filth.is_precompile() {
+                        if acc.info.precomp_state == PrecompState::Pending {
+                            acc.info.precomp_state = PrecompState::Called;
+                        } else {
+                            continue;
+                        }
+                    }
                     acc.info.code = None;
                     acc.info.code_hash = KECCAK_EMPTY;
                     out.insert(add, acc);
@@ -246,6 +259,7 @@ impl SubRoutine {
         let to_is_cold = self.load_account(to, db);
         // check from balance and substract value
         let from = self.log_dirty(from, |_| {});
+
         if from.info.balance < value {
             return Err(Return::OutOfFund);
         }
@@ -505,7 +519,17 @@ impl SubRoutine {
     pub fn load_account_exist<DB: Database>(&mut self, address: H160, db: &mut DB) -> (bool, bool) {
         let (acc, is_cold) = self.load_code(address, db);
         let info = acc.info.clone();
-        let is_empty = info.is_empty() && !acc.filth.is_precompile();
+        let is_empty = if acc.filth.is_precompile() {
+            if acc.info.precomp_state == PrecompState::Called {
+                false
+            } else {
+                acc.filth.make_dirty();
+                acc.info.precomp_state = PrecompState::Pending;
+                true
+            }
+        } else {
+            info.is_empty()
+        };
         (is_cold, !is_empty)
     }
 
@@ -630,7 +654,7 @@ pub struct Account {
 
 impl Account {
     pub fn is_empty(&self) -> bool {
-        self.info.is_empty()
+        self.info.is_empty() && !self.filth.is_precompile()
     }
 }
 

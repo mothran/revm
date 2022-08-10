@@ -8,7 +8,7 @@ use hashbrown::{hash_map::Entry, HashMap as Map};
 
 use primitive_types::{H160, H256, U256};
 
-use crate::{Account, AccountInfo, Log};
+use crate::{Account, AccountInfo, Log, PrecompState};
 use bytes::Bytes;
 use sha3::{Digest, Keccak256};
 
@@ -129,6 +129,7 @@ impl<ExtDB: DatabaseRef> DatabaseCommit for CacheDB<ExtDB> {
                     btree_map::Entry::Occupied(mut entry) => {
                         let db_acc = entry.get_mut();
                         db_acc.info = acc.info;
+
                         if matches!(acc.filth, Filth::NewlyCreated) {
                             db_acc.account_state = AccountState::EVMStorageCleared;
                             db_acc.storage = acc.storage.into_iter().collect();
@@ -297,6 +298,7 @@ impl Database for BenchmarkDB {
                 balance: U256::from(10000000),
                 code: Some(self.0.clone()),
                 code_hash: KECCAK_EMPTY,
+                precomp_state: PrecompState::None,
             };
         }
         AccountInfo::default()

@@ -170,13 +170,13 @@ impl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> EVMImpl<'a, GSPEC, DB, 
             for (add, _) in precompiles.as_slice() {
                 precompile_acc.push(*add);
             }
-            subroutine.load_precompiles_default(&precompile_acc);
+            subroutine.load_precompiles_default(&precompile_acc, env.cfg.precompiles_called);
         } else {
             let mut precompile_acc = Map::new();
             for (add, _) in precompiles.as_slice() {
                 precompile_acc.insert(*add, db.basic(*add));
             }
-            subroutine.load_precompiles(precompile_acc);
+            subroutine.load_precompiles(precompile_acc, env.cfg.precompiles_called);
         }
         Self {
             data: EVMData {
